@@ -2,16 +2,44 @@
 //
 //   node pruebas/servidor-local.mjs      →  http://localhost:4325
 //
-// Imita a Cloudflare Access (firma un token con una llave de prueba) y a
-// la API de Mist (claves y clientes en memoria). Solo escucha en localhost.
+//   /        portal del estudiante: «Continuar con Google» entra directo
+//            como DEV_EMAIL (por defecto estudiante.prueba@lev.edu.ec)
+//   /admin/  consola (Access simulado como ADMIN_EMAIL)
+//
+// Imita a Cloudflare Access (firma un token con una llave de prueba), a la
+// API de Mist (claves y clientes en memoria) y a D1 (SQLite en memoria,
+// Node 22.5 o superior). Solo escucha en localhost.
 
 import http from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
 import worker from '../worker/index.js';
+
+// ---------- D1 imitado con SQLite ----------
+class Sentencia {
+  constructor(db, sql, params = []) { this.db = db; this.sql = sql; this.params = params; }
+  bind(...p) { return new Sentencia(this.db, this.sql, p); }
+  async first() { return this.db.prepare(this.sql).get(...this.params) ?? null; }
+  async all() { return { results: this.db.prepare(this.sql).all(...this.params) }; }
+  async run() { return this.ejecutar(); }
+  ejecutar() {
+    const r = this.db.prepare(this.sql).run(...this.params);
+    return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
+  }
+}
+class D1Local {
+  constructor(ruta) { this.db = new DatabaseSync(ruta); }
+  prepare(sql) { return new Sentencia(this.db, sql); }
+  async batch(sentencias) {
+    this.db.exec('BEGIN');
+    try { const r = sentencias.map((s) => s.ejecutar()); this.db.exec('COMMIT'); return r; }
+    catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
+}
 
 const PUERTO = Number(process.env.PUERTO || 4325);
 const TEAM = 'prueba.cloudflareaccess.com';
 const AUD = 'aud-de-prueba';
-const CORREO = process.env.DEV_EMAIL || 'admin@lev.edu.ec';
+const CORREO = process.env.ADMIN_EMAIL || 'admin@lev.edu.ec';
 
 // --- Llave de prueba para firmar el token de Access ---
 const par = await crypto.subtle.generateKey(
@@ -54,7 +82,9 @@ globalThis.fetch = async (entrada, op = {}) => {
     const m = url.pathname.match(/^\/api\/v1\/sites\/site1\/psks(?:\/([^/]+))?$/);
     if (m && !m[1] && op.method === 'GET') return r(claves);
     if (m && !m[1] && op.method === 'POST') {
-      const k = { id: crypto.randomUUID(), ...JSON.parse(op.body) };
+      const datos = JSON.parse(op.body);
+      if (claves.some((k) => k.name === datos.name)) return r({ detail: 'name already exists' }, 400);
+      const k = { id: crypto.randomUUID(), ...datos };
       claves.push(k);
       return r(k);
     }
@@ -74,6 +104,10 @@ const env = {
   ACCESS_TEAM: TEAM, ACCESS_AUD: AUD, ADMINS: CORREO,
   MIST_API: 'https://api.mist.test', MIST_TOKEN: 'token-de-prueba',
   MIST_ORG_ID: 'org1', MIST_SITE_ID: 'site1', MIST_SSID: SSID,
+  DB: new D1Local(process.env.SQLITE || ':memory:'),
+  SESSION_SECRET: 'secreto-local-de-prueba-con-mas-de-32-caracteres',
+  DEV_EMAIL: process.env.DEV_EMAIL || 'estudiante.prueba@lev.edu.ec',
+  DEV_NOMBRE: process.env.DEV_NOMBRE || 'Estudiante Prueba',
 };
 
 http.createServer(async (req, res) => {
@@ -85,6 +119,9 @@ http.createServer(async (req, res) => {
     method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(trozos),
   });
   const respuesta = await worker.fetch(pedido, env);
-  res.writeHead(respuesta.status, Object.fromEntries(respuesta.headers));
+  const cabeceras = Object.fromEntries(respuesta.headers);
+  const galletas = respuesta.headers.getSetCookie();
+  if (galletas.length) cabeceras['set-cookie'] = galletas;
+  res.writeHead(respuesta.status, cabeceras);
   res.end(Buffer.from(await respuesta.arrayBuffer()));
 }).listen(PUERTO, '127.0.0.1', () => console.log(`lev-wifi local en http://localhost:${PUERTO}`));

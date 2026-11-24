@@ -1,14 +1,14 @@
 // Página de la herramienta de prueba. Todo lo que viene de Mist
 // (nombres de equipos, etc.) se muestra con textContent, nunca como HTML.
 
-export function pagina(nonce) {
+export function paginaAdmin(nonce) {
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Prueba de claves WiFi · Lev</title>
+<title>Consola WiFi · Lev</title>
 <style nonce="${nonce}">
 :root{--tinta:#1d1630;--morado:#8750f7;--morado-osc:#2a1454;--fondo:#f6f2ff;--borde:#ddd3f5;--suave:#5a5270;--rojo:#b3261e;--verde:#1e6b43}
 *{box-sizing:border-box}
@@ -56,12 +56,33 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 .etiqueta{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:#efe7ff;color:var(--morado-osc);font-size:12px;font-weight:600}
 ol{margin:0;padding-left:20px}
 li{margin-bottom:6px}
+form.importar{grid-template-columns:minmax(0,1fr) auto}
+@media (max-width:560px){form.importar{grid-template-columns:1fr}}
+input[type=file]{padding:8px 10px;min-height:44px}
+.totales{font-size:15px;margin:14px 0 10px}
+table.cursos{min-width:560px}
+td.nohab{color:var(--suave)}
+ul.rechazos{margin:8px 0 0;padding-left:20px;font-size:14px}
 </style>
 </head>
 <body>
-<header><div><h1>Prueba de claves WiFi personales</h1><small id="quien">Cargando…</small></div></header>
+<header><div><h1>Consola WiFi del Lev</h1><small id="quien">Cargando…</small></div></header>
 <main>
 <section id="estado" class="aviso oculto"></section>
+
+<section>
+<div class="fila"><h2>Listado de estudiantes</h2><span id="ultimaImportacion" class="vacio"></span></div>
+<p class="vacio">Sube el Excel con las columnas <b>NIVEL</b>, <b>PARALELO_NOMBRE</b>, <b>ESTUDIANTE</b> y <b>CORREO</b> (o un CSV con las mismas columnas). Reemplaza el listado completo. Con él, el portal sabe el curso de cada estudiante y arma el rol y la VLAN que se envían a Mist.</p>
+<form id="importar" class="importar">
+<label>Archivo del listado<input id="archivo" name="archivo" type="file" accept=".xlsx,.csv" required></label>
+<button class="primario" type="submit">Importar listado</button>
+</form>
+<div id="resultadoImportar" class="nueva oculto" role="status"></div>
+<div id="resumenEstudiantes" class="oculto">
+<p id="totales" class="totales"></p>
+<div class="tabla"><table class="cursos"><thead><tr><th>Curso</th><th>Rol en Mist</th><th>VLAN</th><th>Estudiantes</th><th>Con clave</th></tr></thead><tbody id="cursos"></tbody></table></div>
+</div>
+</section>
 
 <section>
 <h2>1. Crear una clave de prueba</h2>
@@ -193,7 +214,7 @@ li{margin-bottom:6px}
         b.addEventListener('click', function(){
           if (!window.confirm('¿Borrar la clave ' + k.nombre + '?')) return;
           b.disabled = true;
-          pedir('DELETE', '/api/claves/' + encodeURIComponent(k.id))
+          pedir('DELETE', '/admin/api/claves/' + encodeURIComponent(k.id))
             .then(function(){ limpiarError(); return cargarClaves(); })
             .catch(function(e){ b.disabled = false; mostrarError(e.message); });
         });
@@ -205,7 +226,7 @@ li{margin-bottom:6px}
   }
 
   function cargarClaves(){
-    return pedir('GET', '/api/claves' + (vista.todas ? '?todas=1' : '')).then(function(lista){
+    return pedir('GET', '/admin/api/claves' + (vista.todas ? '?todas=1' : '')).then(function(lista){
       vista.lista = lista;
       pintarClaves();
     });
@@ -228,7 +249,7 @@ li{margin-bottom:6px}
   });
 
   function cargarClientes(){
-    return pedir('GET', '/api/clientes').then(function(lista){
+    return pedir('GET', '/admin/api/clientes').then(function(lista){
       var tb = $('clientes'); tb.textContent = '';
       $('clientesVacio').className = lista.length ? 'vacio oculto' : 'vacio';
       lista.forEach(function(c){
@@ -249,7 +270,7 @@ li{margin-bottom:6px}
     ev.preventDefault();
     var f = ev.target, b = f.querySelector('button');
     b.disabled = true;
-    pedir('POST', '/api/claves', {
+    pedir('POST', '/admin/api/claves', {
       nombre: f.nombre.value, vlan: f.vlan.value, rol: f.rol.value, email: f.email.value, max: f.max.value, horas: f.horas.value
     }).then(function(k){
       limpiarError();
@@ -266,7 +287,185 @@ li{margin-bottom:6px}
   $('recargarClaves').addEventListener('click', function(){ cargarClaves().catch(function(e){ mostrarError(e.message); }); });
   $('recargarClientes').addEventListener('click', function(){ cargarClientes().catch(function(e){ mostrarError(e.message); }); });
 
-  pedir('GET', '/api/estado').then(function(s){
+  // ---------- Listado de estudiantes ----------
+
+  function u16(d, o){ return d.getUint16(o, true); }
+  function u32(d, o){ return d.getUint32(o, true); }
+
+  // Lector mínimo de .xlsx (un .zip con XML), sin librerías externas.
+  async function leerZip(buf){
+    var d = new DataView(buf), eocd = -1;
+    for (var i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) {
+      if (u32(d, i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('El archivo no parece un Excel (.xlsx) válido');
+    var n = u16(d, eocd + 10), p = u32(d, eocd + 16), archivos = {};
+    for (var k = 0; k < n; k++) {
+      if (u32(d, p) !== 0x02014b50) break;
+      var ln = u16(d, p + 28), le = u16(d, p + 30), lc = u16(d, p + 32);
+      var nombre = new TextDecoder().decode(new Uint8Array(buf, p + 46, ln));
+      archivos[nombre] = { metodo: u16(d, p + 10), comp: u32(d, p + 20), off: u32(d, p + 42) };
+      p += 46 + ln + le + lc;
+    }
+    async function texto(nombre){
+      var a = archivos[nombre]; if (!a) return null;
+      var ini = a.off + 30 + u16(d, a.off + 26) + u16(d, a.off + 28);
+      var datos = new Uint8Array(buf.slice(ini, ini + a.comp));
+      if (a.metodo === 8) {
+        var s = new Blob([datos]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        datos = new Uint8Array(await new Response(s).arrayBuffer());
+      }
+      return new TextDecoder().decode(datos);
+    }
+    return { texto: texto, nombres: Object.keys(archivos) };
+  }
+
+  function xml(texto){ return new DOMParser().parseFromString(texto, 'application/xml'); }
+  function etiquetas(nodo, nombre){ return Array.prototype.slice.call(nodo.getElementsByTagNameNS('*', nombre)); }
+  function columna(ref){
+    var letras = String(ref || '').replace(/[0-9]/g, ''), n = 0;
+    for (var i = 0; i < letras.length; i++) n = n * 26 + (letras.charCodeAt(i) - 64);
+    return n - 1;
+  }
+
+  async function filasXlsx(buf){
+    var zip = await leerZip(buf);
+    var compartidos = [];
+    var ss = await zip.texto('xl/sharedStrings.xml');
+    if (ss) compartidos = etiquetas(xml(ss), 'si').map(function(si){
+      return etiquetas(si, 't').map(function(t){ return t.textContent; }).join('');
+    });
+    var hojas = zip.nombres.filter(function(x){ return /^xl\\/worksheets\\/sheet\\d+\\.xml$/.test(x); }).sort();
+    var hoja = zip.nombres.indexOf('xl/worksheets/sheet1.xml') >= 0 ? 'xl/worksheets/sheet1.xml' : hojas[0];
+    if (!hoja) throw new Error('No se encontró ninguna hoja en el Excel');
+    return etiquetas(xml(await zip.texto(hoja)), 'row').map(function(fila){
+      var valores = [];
+      etiquetas(fila, 'c').forEach(function(c){
+        var t = c.getAttribute('t'), v = etiquetas(c, 'v')[0], valor = '';
+        if (t === 's' && v) valor = compartidos[Number(v.textContent)] || '';
+        else if (t === 'inlineStr') valor = etiquetas(c, 't').map(function(x){ return x.textContent; }).join('');
+        else if (v) valor = v.textContent;
+        valores[columna(c.getAttribute('r'))] = valor;
+      });
+      return valores;
+    });
+  }
+
+  function filasCsv(buf){
+    var texto = new TextDecoder('utf-8').decode(buf);
+    if (texto.indexOf('\\uFFFD') >= 0) texto = new TextDecoder('windows-1252').decode(buf);
+    texto = texto.replace(/^\\uFEFF/, '');
+    var primera = texto.split(/\\r?\\n/)[0] || '';
+    var sep = (primera.split(';').length > primera.split(',').length) ? ';' : ',';
+    var filas = [], fila = [], campo = '', comillas = false;
+    for (var i = 0; i < texto.length; i++) {
+      var ch = texto[i];
+      if (comillas) {
+        if (ch === '"' && texto[i + 1] === '"') { campo += '"'; i++; }
+        else if (ch === '"') comillas = false;
+        else campo += ch;
+      } else if (ch === '"') comillas = true;
+      else if (ch === sep) { fila.push(campo); campo = ''; }
+      else if (ch === '\\n' || ch === '\\r') {
+        if (ch === '\\r' && texto[i + 1] === '\\n') i++;
+        fila.push(campo); filas.push(fila); fila = []; campo = '';
+      } else campo += ch;
+    }
+    if (campo || fila.length) { fila.push(campo); filas.push(fila); }
+    return filas;
+  }
+
+  function normal(t){ return String(t || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().trim(); }
+
+  function aEstudiantes(filas){
+    var idx = -1, col = null;
+    for (var i = 0; i < Math.min(filas.length, 15); i++) {
+      var h = (filas[i] || []).map(normal);
+      var c = {
+        correo: h.findIndex(function(x){ return x.indexOf('CORREO') >= 0 || x.indexOf('EMAIL') >= 0; }),
+        nivel: h.findIndex(function(x){ return x === 'NIVEL' || x.indexOf('NIVEL') === 0; }),
+        paralelo: h.findIndex(function(x){ return x.indexOf('PARALELO') >= 0; }),
+        nombre: h.findIndex(function(x){ return x.indexOf('ESTUDIANTE') >= 0 || x === 'NOMBRE' || x === 'NOMBRES'; })
+      };
+      if (c.correo >= 0 && c.nivel >= 0 && c.paralelo >= 0) { idx = i; col = c; break; }
+    }
+    if (idx < 0) throw new Error('No encontré las columnas NIVEL, PARALELO_NOMBRE y CORREO en las primeras filas');
+    var lista = [];
+    for (var j = idx + 1; j < filas.length; j++) {
+      var f = filas[j] || [];
+      var vacia = !f.some(function(x){ return String(x || '').trim(); });
+      if (vacia) continue;
+      lista.push({
+        fila: j + 1,
+        correo: String(f[col.correo] || '').trim(),
+        nivel: String(f[col.nivel] || '').trim(),
+        paralelo: String(f[col.paralelo] || '').trim(),
+        nombre: col.nombre >= 0 ? String(f[col.nombre] || '').trim() : ''
+      });
+    }
+    return lista;
+  }
+
+  function pintarResumen(r){
+    $('resumenEstudiantes').className = r.total ? '' : 'oculto';
+    $('ultimaImportacion').textContent = r.ultimaImportacion ? 'Última importación: ' + new Date(r.ultimaImportacion).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' }) : 'Sin listado importado';
+    $('totales').textContent = r.total + ' estudiantes en el listado · ' + r.habilitados + ' pueden usar el portal · ' + r.conClave + ' ya generaron su clave';
+    var tb = $('cursos'); tb.textContent = '';
+    r.cursos.forEach(function(c){
+      var tr = document.createElement('tr');
+      celda(tr, c.curso);
+      celda(tr, c.rol || 'No habilitado', c.rol ? 'mono' : 'nohab');
+      celda(tr, c.vlan, 'mono');
+      celda(tr, c.total, 'num');
+      celda(tr, c.vlan === null ? '' : c.conClave, 'num');
+      tb.appendChild(tr);
+    });
+  }
+
+  function cargarEstudiantes(){
+    return pedir('GET', '/admin/api/estudiantes').then(pintarResumen);
+  }
+
+  $('importar').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var archivo = $('archivo').files[0], b = ev.target.querySelector('button');
+    if (!archivo) return;
+    b.disabled = true; limpiarError();
+    var caja = $('resultadoImportar');
+    archivo.arrayBuffer().then(function(buf){
+      return /\\.csv$/i.test(archivo.name) ? filasCsv(buf) : filasXlsx(buf);
+    }).then(function(filas){
+      var lista = aEstudiantes(filas);
+      if (!window.confirm('Se reemplazará el listado actual con ' + lista.length + ' filas de «' + archivo.name + '». ¿Continuar?')) return null;
+      return pedir('POST', '/admin/api/estudiantes', { filas: lista });
+    }).then(function(r){
+      if (!r) return;
+      caja.textContent = '';
+      caja.appendChild(document.createTextNode(r.importados + ' estudiantes importados.' + (r.rechazadas.length ? ' ' + r.rechazadas.length + ' filas no se importaron:' : '')));
+      if (r.rechazadas.length) {
+        var ul = document.createElement('ul'); ul.className = 'rechazos';
+        r.rechazadas.slice(0, 50).forEach(function(x){
+          var li = document.createElement('li');
+          li.textContent = 'Fila ' + x.fila + (x.correo ? ' (' + x.correo + ')' : '') + ': ' + x.motivo;
+          ul.appendChild(li);
+        });
+        caja.appendChild(ul);
+      }
+      if (r.fueraDelListadoConClave) {
+        var p = document.createElement('p');
+        p.textContent = r.fueraDelListadoConClave + ' cuentas con clave activa ya no están en el listado.';
+        caja.appendChild(p);
+      }
+      caja.className = 'nueva';
+      pintarResumen(r.resumen);
+      ev.target.reset();
+    }).catch(function(e){ mostrarError(e.message); })
+      .then(function(){ b.disabled = false; });
+  });
+
+  cargarEstudiantes().catch(function(e){ mostrarError(e.message); });
+
+  pedir('GET', '/admin/api/estado').then(function(s){
     $('quien').textContent = s.correo;
     $('ssid').textContent = s.ssid || '(sin configurar)';
     if (s.faltan && s.faltan.length) {

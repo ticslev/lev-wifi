@@ -95,6 +95,28 @@ export async function borrarClave(env, id) {
   return clave;
 }
 
+// ---------- Claves del portal (una por estudiante) ----------
+// El portal solo lee o borra claves cuyo ID guardó él mismo en D1.
+
+export async function obtenerClave(env, id) {
+  try {
+    return await llamar(env, 'GET', `${sitio(env)}/psks/${encodeURIComponent(id)}`);
+  } catch (e) {
+    if (e instanceof ErrorMist && e.estado === 404) return null;
+    throw e;
+  }
+}
+
+// Devuelve true si la borró o si ya no existía.
+export async function borrarClavePortal(env, id) {
+  try {
+    await llamar(env, 'DELETE', `${sitio(env)}/psks/${encodeURIComponent(id)}`);
+  } catch (e) {
+    if (!(e instanceof ErrorMist && e.estado === 404)) throw e;
+  }
+  return true;
+}
+
 // Todos los clientes inalámbricos conectados ahora en el sitio.
 export async function listarTodosClientes(env) {
   return listarTodo(env, `${sitio(env)}/stats/clients`);

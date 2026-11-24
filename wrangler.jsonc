@@ -1,20 +1,28 @@
 {
-  // Herramienta de prueba de claves WiFi (Multi-PSK de Juniper Mist).
-  // Fase 1 del portal lev-wifi: valida que las claves creadas por API
-  // asignen su VLAN y respeten el límite de dispositivos.
+  // lev-wifi — Portal de registro a la red WiFi de la Unidad Educativa Lev Vygotsky
+  // https://wifi.lev.edu.ec  (estudiantes)   ·   https://wifi.lev.edu.ec/admin/  (TI)
   "name": "lev-wifi",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-01",
   "observability": { "enabled": true },
+
+  // Base de datos: listado de estudiantes, claves generadas y registro de eventos.
+  // Las tablas se crean solas.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lev-wifi",
+      // Pegar aquí el Database ID de D1 → lev-wifi (Cloudflare → Storage & Databases → D1).
+      "database_id": "PEGAR-AQUI-EL-DATABASE-ID"
+    }
+  ],
 
   // Las variables y secretos se configuran en el panel de Cloudflare
   // (Worker → Settings → Variables and Secrets). keep_vars evita que
   // un despliegue nuevo las borre.
   "keep_vars": true,
   "vars": {
-    // Servidor de la API de Mist según la región de tu organización:
-    // api.mist.com (Global 01), api.gc1.mist.com (Global 02),
-    // api.ac2.mist.com (Global 03), api.gc2.mist.com (Global 04), etc.
+    // Servidor de la API de Mist según la región de tu organización.
     "MIST_API": "https://api.mist.com"
   }
 }

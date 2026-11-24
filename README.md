@@ -12,8 +12,8 @@ El proyecto se construye por fases:
 
 | Fase | Qué es | Estado |
 |---|---|---|
-| **1. Prueba de claves** | Página interna para crear claves en Mist por API y comprobar VLAN, límite de dispositivos y revocación. | **Esta versión** |
-| 2. Portal del estudiante | Inicio de sesión con Google, perfil según la unidad organizativa, generación de clave con reglas propias. | Pendiente |
+| 1. Prueba de claves | Herramienta interna para crear claves en Mist por API y comprobar VLAN, límite de dispositivos y revocación. | Lista (en `/admin/`) |
+| **2. Portal del estudiante** | Inicio de sesión con Google, curso según el listado importado, clave personal con rol y VLAN del curso. | **Esta versión** |
 | 3. Consola y automatización | Fichas, dispositivos, alertas, promoción de año y revocación por retiro (D1, cron y webhooks de Mist). | Pendiente |
 
 La fase 1 existe para responder una pregunta antes de construir lo demás:
@@ -23,7 +23,79 @@ propio.
 
 ---
 
-## Fase 1: herramienta de prueba
+## Fase 2: portal del estudiante
+
+| Dirección | Quién | Para qué |
+|---|---|---|
+| `https://wifi.lev.edu.ec/` | Estudiantes (Google @lev.edu.ec) | Ver o generar su clave WiFi |
+| `https://wifi.lev.edu.ec/admin/` | TI (Cloudflare Access) | Importar el listado, probar claves, ver todas las claves del sitio |
+
+### Cómo funciona
+
+1. TI importa el listado de estudiantes (Excel con `NIVEL`, `PARALELO_NOMBRE`,
+   `ESTUDIANTE`, `CORREO`) desde la consola. Se guarda en D1 como
+   correo → nivel y paralelo. Cada importación reemplaza el listado completo.
+2. El estudiante entra con Google. El portal busca su correo en el listado y
+   muestra su curso, por ejemplo «2do BGU · Honestos».
+3. Al generar su clave, el portal crea en Mist (red `MIST_SSID`):
+
+| Campo en Mist | Valor |
+|---|---|
+| Nombre de clave | Nombre de la cuenta de Google |
+| Email | Correo de Google |
+| Frase de contraseña | Generada por el portal (cuatro palabras y un número) |
+| Uso | Múltiples usuarios, con máximo `MAX_DISPOSITIVOS` (2 por defecto) |
+| ID de VLAN | La del nivel (tabla de abajo) |
+| Rol | Grado + nivel + paralelo, sin espacios, tildes ni ñ: `2doBGUHonestos` |
+
+4. Si pide una clave nueva, la anterior se borra en Mist y deja de funcionar
+   en todos sus equipos. Hay un máximo de `LIMITE_CLAVES` (3 por defecto)
+   claves nuevas cada 90 días; después debe acercarse a TI.
+
+### Niveles habilitados y VLAN
+
+Definidos en `worker/reglas.js`:
+
+| Nivel | VLAN | Ejemplo de rol |
+|---|---|---|
+| 7mo EGB | 94 | `7moEGBResponsables` |
+| 8vo, 9no y 10mo EGB | 96 | `10moEGBPositivos` |
+| 1ro, 2do y 3ro BGU | 98 | `2doBGUHonestos` |
+
+Los demás niveles ven un mensaje para acercarse a TI y no pueden generar clave.
+
+### Puesta en marcha de la fase 2
+
+1. **Base de datos.** Cloudflare → *Storage & Databases* → *D1* → *Create* →
+   nombre `lev-wifi`. Copia el *Database ID* y pégalo en `wrangler.jsonc`
+   (`"database_id"`).
+2. **Cliente OAuth de Google.** En Google Cloud → *APIs y servicios* →
+   *Credenciales*, abre el cliente OAuth que ya usa Lev Link (o crea uno nuevo,
+   tipo *Aplicación web*, pantalla de consentimiento *Interna*) y agrega el URI
+   de redirección `https://wifi.lev.edu.ec/auth/callback`.
+3. **Secretos del Worker** (Settings → Variables and Secrets, tipo *Secret*):
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `SESSION_SECRET` (una cadena
+   aleatoria de 48 caracteres o más).
+4. **Opcionales** (tipo *Text*): `MAX_DISPOSITIVOS` (por defecto 2) y
+   `LIMITE_CLAVES` (por defecto 3).
+5. **Cloudflare Access solo para la consola.** Edita la aplicación de Access
+   *Lev WiFi* y en el dominio agrega la ruta `admin` (queda
+   `wifi.lev.edu.ec/admin`). Así los estudiantes pueden entrar a la página
+   principal y la consola sigue protegida. **Hazlo solo cuando el portal esté
+   probado**: mientras Access cubra todo el dominio, solo TI puede entrar.
+6. Entra a `/admin/`, importa el listado y prueba el portal con una cuenta de
+   estudiante que esté en el listado.
+
+### Datos personales
+
+El listado (nombres y correos de menores) **no se sube al repositorio**: se
+carga solo desde la consola, directo a D1. D1 guarda el listado, el ID de cada
+clave en Mist, su motivo y un registro de eventos. **Las frases de contraseña
+no se guardan en D1**: el portal las lee de Mist cuando el estudiante las pide.
+
+---
+
+## Fase 1: herramienta de prueba (ahora en `/admin/`)
 
 Una página protegida con Cloudflare Access (solo administradores) que:
 
@@ -40,12 +112,18 @@ listan ni se pueden borrar desde aquí, y sus dispositivos no aparecen.
 
 ### Archivos
 
-- `worker/index.js`: rutas y validaciones.
+- `worker/index.js`: rutas (portal, `/auth`, `/api`, `/admin`).
+- `worker/reglas.js`: niveles habilitados, VLAN, armado del rol y límites.
+- `worker/auth.js`: inicio de sesión con Google (basado en Lev Link).
+- `worker/estudiante.js`: API del portal (`/api/yo`, `/api/mi-clave`).
+- `worker/portal.js`: página del estudiante.
+- `worker/admin.js`: API de la consola (listado, claves, clientes).
+- `worker/pagina.js`: página de la consola, con el lector de Excel.
 - `worker/acceso.js`: verifica la firma del token de Cloudflare Access.
 - `worker/mist.js`: llamadas a la API de Mist.
+- `worker/db.js`: tablas de D1.
 - `worker/clave.js`: generador de claves (cuatro palabras y un número).
-- `worker/pagina.js`: la página.
-- `pruebas/servidor-local.mjs`: prueba local con Access y Mist simulados.
+- `pruebas/servidor-local.mjs`: prueba local con Access, Mist y D1 simulados.
 
 ---
 
@@ -114,7 +192,7 @@ aunque alguien llegara por otra ruta no podría entrar.
 
 ## Plan de pruebas
 
-Entra a `https://wifi.lev.edu.ec` y:
+Entra a `https://wifi.lev.edu.ec/admin/` y:
 
 1. Crea la **clave A**: VLAN de Básica superior, máximo **1** dispositivo.
    Conecta un celular a `LEV` con esa clave (si ya estaba conectado, olvida
@@ -150,5 +228,8 @@ Con Node 18 o superior:
 node pruebas/servidor-local.mjs
 ```
 
-Abre `http://localhost:4325`. Usa datos simulados en memoria; no se conecta a
-ningún servicio real.
+Necesita Node 22.5 o superior (usa SQLite para imitar D1). Abre
+`http://localhost:4325/admin/` para la consola y `http://localhost:4325/` para
+el portal: «Continuar con Google» entra directo como `DEV_EMAIL`
+(`estudiante.prueba@lev.edu.ec` por defecto), que debe estar en el listado
+importado. Usa datos simulados; no se conecta a ningún servicio real.
