@@ -30,13 +30,15 @@ async function tokenAccess() {
 }
 
 // --- Mist simulado ---
-const SSID = 'LEV-PRUEBA';
+const SSID = 'LEV';
 const claves = [
   { id: '0b1c2d3e-0000-4000-8000-000000000001', name: 'prueba-a', passphrase: 'ceibo-lago-72-norte-pan', ssid: SSID, vlan_id: 140, max_usage: 1, expire_time: Math.floor(Date.now() / 1000) + 86400 },
+  { id: '0b1c2d3e-0000-4000-8000-000000000098', name: 'estudiante@lev.edu.ec', passphrase: 'clave-real', ssid: SSID, vlan_id: 150, max_usage: 1 },
   { id: '0b1c2d3e-0000-4000-8000-000000000099', name: 'docentes-real', passphrase: 'no-tocar', ssid: 'LEV-DOCENTES', vlan_id: 200, max_usage: 3 },
 ];
 const clientes = [
   { mac: 'aa11bb22cc33', ssid: SSID, psk_id: claves[0].id, vlan_id: 140, ip: '10.14.0.23', hostname: 'Galaxy-A54 <b>x</b>', manufacture: 'Samsung', family: 'Android', model: 'Galaxy A54', os: 'Android 15', ap_mac: '5c5b35000001' },
+  { mac: '112233445566', ssid: SSID, psk_id: '0b1c2d3e-0000-4000-8000-000000000098', vlan_id: 150, ip: '10.15.0.9', hostname: 'celular-estudiante' },
   { mac: 'dd44ee55ff66', ssid: 'LEV-DOCENTES', vlan_id: 200, ip: '10.20.0.5', hostname: 'laptop-docente' },
 ];
 

@@ -27,15 +27,16 @@ propio.
 
 Una página protegida con Cloudflare Access (solo administradores) que:
 
-- crea claves Multi-PSK en Mist para un **SSID de prueba**, con VLAN, máximo de
-  dispositivos y vigencia (por defecto 48 horas, para que no queden claves
-  olvidadas);
-- lista las claves de ese SSID y permite borrarlas;
-- muestra los dispositivos conectados a ese SSID: qué clave usan, en qué VLAN
+- crea claves Multi-PSK en Mist para la red indicada en `MIST_SSID` (hoy
+  **`LEV`**, que ya es Multi-PSK), con VLAN, máximo de dispositivos y vigencia
+  (por defecto 48 horas, para que no queden claves olvidadas);
+- lista esas claves de prueba y permite borrarlas;
+- muestra los dispositivos conectados con ellas: qué clave usan, en qué VLAN
   cayeron, su IP y qué equipo detecta Mist (fabricante, modelo, sistema).
 
-Por seguridad, **solo trabaja con el SSID de prueba** (`MIST_SSID`): no lista,
-crea ni borra claves de otras redes.
+Por seguridad, **solo ve y borra claves cuyo nombre empieza con `prueba-`**
+(las que crea ella misma). Las claves reales de estudiantes y personal no se
+listan ni se pueden borrar desde aquí, y sus dispositivos no aparecen.
 
 ### Archivos
 
@@ -50,26 +51,24 @@ crea ni borra claves de otras redes.
 
 ## Puesta en marcha (todo desde las consolas web)
 
-### 1. En Mist: SSID de prueba
+### 1. En Mist: la red y los datos de la API
 
-1. Crea una WLAN nueva, por ejemplo **`LEV-PRUEBA`**, solo en uno o dos APs de
-   la zona donde vas a probar (o en todo el sitio, oculta).
-2. Seguridad: **WPA2 (o WPA3) Personal con varias claves** (Multi-PSK), y como
-   origen de las claves elige la opción **en la nube de Mist** (Cloud PSK).
-   > Si tu suscripción no ofrece esa opción, esa es la respuesta de la prueba:
-   > anótalo y lo vemos.
-3. VLAN: configúrala para que pueda asignar varias VLAN (etiquetada o dinámica)
-   e incluye las VLAN de prueba, por ejemplo la de Básica superior y la de
-   Bachillerato. Los puertos de los switches hacia esos APs deben llevar esas
-   VLAN.
-4. Anota los datos:
+1. La red **`LEV`** ya es Multi-PSK. Revisa en su configuración de seguridad si
+   las claves están **en la nube de Mist** (Cloud PSK: se ven en
+   Organization → Pre-Shared Keys) o **locales** (escritas dentro de la WLAN).
+   La herramienta crea claves **en la nube**; si la red solo usa claves
+   locales, avísalo antes de probar.
+2. VLAN: la WLAN debe poder asignar varias VLAN (etiquetada o dinámica) e
+   incluir las VLAN de prueba, por ejemplo la de Básica superior y la de
+   Bachillerato.
+3. Anota los datos:
    - **ID de la organización**: Organization → Settings.
    - **ID del sitio**: Organization → Site Configuration → el sitio (también
      aparece en la dirección del navegador).
    - **Servidor de la API**: la dirección con la que entras a Mist cambiando
      `manage` por `api`. Ejemplo: `manage.mist.com` → `https://api.mist.com`;
      `manage.gc1.mist.com` → `https://api.gc1.mist.com`.
-5. Crea un **token de API**: Organization → Settings → API Token → Create.
+4. Crea un **token de API**: Organization → Settings → API Token → Create.
    Nivel **Network Admin** para toda la organización (las claves de nube son
    de organización). Copia el token: Mist lo muestra una sola vez.
 
@@ -89,7 +88,7 @@ crea ni borra claves de otras redes.
 | `MIST_API` | Text | p. ej. `https://api.mist.com` (ya viene en `wrangler.jsonc`) |
 | `MIST_ORG_ID` | Text | ID de la organización |
 | `MIST_SITE_ID` | Text | ID del sitio |
-| `MIST_SSID` | Text | `LEV-PRUEBA` (exactamente como en Mist) |
+| `MIST_SSID` | Text | `LEV` (exactamente como en Mist) |
 | `ACCESS_TEAM` | Text | dominio del equipo de Zero Trust, p. ej. `lev.cloudflareaccess.com` |
 | `ACCESS_AUD` | Text | el *AUD tag* de la aplicación de Access (paso 3) |
 | `ADMINS` | Text | correos autorizados, separados por comas |
@@ -114,7 +113,8 @@ aunque alguien llegara por otra ruta no podría entrar.
 Entra a `https://wifi.lev.edu.ec` y:
 
 1. Crea la **clave A**: VLAN de Básica superior, máximo **1** dispositivo.
-   Conecta un celular a `LEV-PRUEBA` con esa clave.
+   Conecta un celular a `LEV` con esa clave (si ya estaba conectado, olvida
+   la red primero).
    - En la sección 3 debe aparecer con la clave A y esa VLAN.
    - En el FortiGate, el equipo debe recibir IP de esa VLAN y su perfil de
      filtrado.

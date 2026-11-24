@@ -6,7 +6,7 @@
 //   - ver las claves del SSID de prueba y borrarlas;
 //   - ver qué dispositivos están conectados al SSID de prueba, con qué
 //     clave, en qué VLAN y qué equipo detecta Mist.
-// Todo se limita al SSID indicado en MIST_SSID.
+// Todo se limita a las claves "prueba-…" del SSID indicado en MIST_SSID.
 
 import { verificarAcceso } from './acceso.js';
 import { generarClave } from './clave.js';
@@ -140,7 +140,8 @@ async function api(request, env, url, correo) {
   }
 
   if (ruta === '/api/clientes' && request.method === 'GET') {
-    const [clientes, claves] = await Promise.all([listarClientes(env), listarClaves(env)]);
+    const claves = await listarClaves(env);
+    const clientes = await listarClientes(env, new Set(claves.map((k) => k.id)));
     const nombres = Object.fromEntries(claves.map((k) => [k.id, k.name]));
     return json(clientes.map((c) => resumirCliente(c, nombres)));
   }

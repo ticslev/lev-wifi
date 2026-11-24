@@ -5,8 +5,14 @@
 //   MIST_TOKEN    (secreto) token de API de Mist
 //   MIST_ORG_ID   ID de la organización
 //   MIST_SITE_ID  ID del sitio (para ver los clientes conectados)
-//   MIST_SSID     SSID de PRUEBA: la herramienta solo crea, lista y borra
-//                 claves de este SSID, para no tocar las redes en producción.
+//   MIST_SSID     SSID donde se crean las claves de prueba.
+//
+// La herramienta solo ve y borra claves de ese SSID cuyo nombre empieza
+// con "prueba-". Así se puede usar sobre una red Multi-PSK en producción
+// sin listar ni tocar las claves reales de estudiantes y personal.
+
+export const PREFIJO = 'prueba-';
+const esDePrueba = (k, env) => k && k.ssid === env.MIST_SSID && String(k.name || '').startsWith(PREFIJO);
 
 export class ErrorMist extends Error {
   constructor(mensaje, estado, detalle) {
@@ -51,7 +57,7 @@ const org = (env) => `/orgs/${env.MIST_ORG_ID}`;
 
 export async function listarClaves(env) {
   const todas = await llamar(env, 'GET', `${org(env)}/psks?limit=1000`);
-  return (Array.isArray(todas) ? todas : []).filter((k) => k.ssid === env.MIST_SSID);
+  return (Array.isArray(todas) ? todas : []).filter((k) => esDePrueba(k, env));
 }
 
 export async function crearClave(env, datos) {
@@ -59,16 +65,19 @@ export async function crearClave(env, datos) {
 }
 
 export async function borrarClave(env, id) {
-  // Comprueba primero que la clave sea del SSID de prueba.
+  // Comprueba primero que sea una clave de prueba.
   const clave = await llamar(env, 'GET', `${org(env)}/psks/${encodeURIComponent(id)}`);
-  if (!clave || clave.ssid !== env.MIST_SSID) {
-    throw new ErrorMist('Solo se pueden borrar claves del SSID de prueba', 403);
+  if (!esDePrueba(clave, env)) {
+    throw new ErrorMist('Solo se pueden borrar claves de prueba creadas con esta herramienta', 403);
   }
   await llamar(env, 'DELETE', `${org(env)}/psks/${encodeURIComponent(id)}`);
   return clave;
 }
 
-export async function listarClientes(env) {
+// Solo devuelve los clientes conectados con alguna de las claves de prueba.
+export async function listarClientes(env, idsPrueba) {
   const todos = await llamar(env, 'GET', `/sites/${env.MIST_SITE_ID}/stats/clients?limit=1000`);
-  return (Array.isArray(todos) ? todos : []).filter((c) => c.ssid === env.MIST_SSID);
+  return (Array.isArray(todos) ? todos : []).filter(
+    (c) => c.ssid === env.MIST_SSID && c.psk_id && idsPrueba.has(c.psk_id)
+  );
 }

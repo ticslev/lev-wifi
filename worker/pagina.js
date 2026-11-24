@@ -52,7 +52,7 @@ li{margin-bottom:6px}
 
 <section>
 <h2>1. Crear una clave de prueba</h2>
-<p class="vacio">Se crea en Mist para el SSID de prueba <b id="ssid">—</b>. Usa VLANs reales para comprobar que el FortiGate aplica el perfil correcto.</p>
+<p class="vacio">Se crea en Mist para la red <b id="ssid">—</b> con un nombre que empieza por «prueba-». La herramienta solo ve y borra esas claves; las de estudiantes y personal no aparecen aquí. Usa VLANs reales para comprobar que el FortiGate aplica el perfil correcto.</p>
 <form id="crear">
 <label>Nombre (p. ej. prueba1)<input name="nombre" required maxlength="40" autocomplete="off"></label>
 <label>VLAN<input name="vlan" type="number" min="1" max="4094" required></label>
@@ -64,15 +64,15 @@ li{margin-bottom:6px}
 </section>
 
 <section>
-<div class="fila"><h2>2. Claves del SSID de prueba</h2><button id="recargarClaves" type="button">Actualizar</button></div>
+<div class="fila"><h2>2. Claves de prueba</h2><button id="recargarClaves" type="button">Actualizar</button></div>
 <div class="tabla"><table><thead><tr><th>Nombre</th><th>Clave</th><th>VLAN</th><th>Máx.</th><th>Vence</th><th></th></tr></thead><tbody id="claves"></tbody></table></div>
-<p id="clavesVacio" class="vacio oculto">No hay claves en el SSID de prueba.</p>
+<p id="clavesVacio" class="vacio oculto">No hay claves de prueba.</p>
 </section>
 
 <section>
-<div class="fila"><h2>3. Dispositivos conectados al SSID de prueba</h2><button id="recargarClientes" type="button">Actualizar</button></div>
+<div class="fila"><h2>3. Dispositivos conectados con claves de prueba</h2><button id="recargarClientes" type="button">Actualizar</button></div>
 <div class="tabla"><table><thead><tr><th>Clave</th><th>VLAN</th><th>IP</th><th>MAC</th><th>Nombre del equipo</th><th>Fabricante · modelo · SO</th><th>AP</th></tr></thead><tbody id="clientes"></tbody></table></div>
-<p id="clientesVacio" class="vacio oculto">No hay dispositivos conectados al SSID de prueba.</p>
+<p id="clientesVacio" class="vacio oculto">No hay dispositivos conectados con claves de prueba.</p>
 </section>
 
 <section>
