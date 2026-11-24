@@ -1,0 +1,9 @@
+{
+  "name": "lev-wifi",
+  "private": true,
+  "type": "module",
+  "description": "Portal de registro WiFi de la Unidad Educativa Lev Vygotsky (Cloudflare Worker + Juniper Mist)",
+  "scripts": {
+    "local": "node pruebas/servidor-local.mjs"
+  }
+}
