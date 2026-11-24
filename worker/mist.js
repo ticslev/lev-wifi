@@ -53,24 +53,27 @@ async function llamar(env, metodo, ruta, cuerpo) {
   return datos;
 }
 
-const org = (env) => `/orgs/${env.MIST_ORG_ID}`;
+// Las claves se manejan a nivel de SITIO: la organización de Mist la
+// administra el proveedor, y una cuenta con permisos solo sobre el sitio
+// no puede crear claves de organización.
+const sitio = (env) => `/sites/${env.MIST_SITE_ID}`;
 
 export async function listarClaves(env) {
-  const todas = await llamar(env, 'GET', `${org(env)}/psks?limit=1000`);
+  const todas = await llamar(env, 'GET', `${sitio(env)}/psks?limit=1000`);
   return (Array.isArray(todas) ? todas : []).filter((k) => esDePrueba(k, env));
 }
 
 export async function crearClave(env, datos) {
-  return llamar(env, 'POST', `${org(env)}/psks`, { ...datos, ssid: env.MIST_SSID });
+  return llamar(env, 'POST', `${sitio(env)}/psks`, { ...datos, ssid: env.MIST_SSID });
 }
 
 export async function borrarClave(env, id) {
   // Comprueba primero que sea una clave de prueba.
-  const clave = await llamar(env, 'GET', `${org(env)}/psks/${encodeURIComponent(id)}`);
+  const clave = await llamar(env, 'GET', `${sitio(env)}/psks/${encodeURIComponent(id)}`);
   if (!esDePrueba(clave, env)) {
     throw new ErrorMist('Solo se pueden borrar claves de prueba creadas con esta herramienta', 403);
   }
-  await llamar(env, 'DELETE', `${org(env)}/psks/${encodeURIComponent(id)}`);
+  await llamar(env, 'DELETE', `${sitio(env)}/psks/${encodeURIComponent(id)}`);
   return clave;
 }
 

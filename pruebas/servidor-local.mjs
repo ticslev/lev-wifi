@@ -49,7 +49,7 @@ globalThis.fetch = async (entrada, op = {}) => {
   if (url.host === TEAM && url.pathname === '/cdn-cgi/access/certs') return r({ keys: [jwkPublica] });
   if (url.host === 'api.mist.test') {
     if (op.headers?.Authorization !== 'Token token-de-prueba') return r({ detail: 'auth' }, 401);
-    const m = url.pathname.match(/^\/api\/v1\/orgs\/org1\/psks(?:\/([^/]+))?$/);
+    const m = url.pathname.match(/^\/api\/v1\/sites\/site1\/psks(?:\/([^/]+))?$/);
     if (m && !m[1] && op.method === 'GET') return r(claves);
     if (m && !m[1] && op.method === 'POST') {
       const k = { id: crypto.randomUUID(), ...JSON.parse(op.body) };

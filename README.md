@@ -68,9 +68,13 @@ listan ni se pueden borrar desde aquí, y sus dispositivos no aparecen.
    - **Servidor de la API**: la dirección con la que entras a Mist cambiando
      `manage` por `api`. Ejemplo: `manage.mist.com` → `https://api.mist.com`;
      `manage.gc1.mist.com` → `https://api.gc1.mist.com`.
-4. Crea un **token de API**: Organization → Settings → API Token → Create.
-   Nivel **Network Admin** para toda la organización (las claves de nube son
-   de organización). Copia el token: Mist lo muestra una sola vez.
+4. Crea un **token de API**. La organización de Mist la administra el
+   proveedor, así que lo normal es tener permisos solo sobre el sitio. Por eso
+   las claves se crean **a nivel de sitio** y el token se crea desde tu
+   propia cuenta: menú de tu usuario (arriba a la derecha) → **Mi cuenta**
+   → **Token de API** → **Crear token**. Ese token tiene los mismos permisos
+   que tu cuenta, que debe ser al menos **Network Admin** (o Super User) del
+   sitio. Copia el token: Mist lo muestra una sola vez.
 
 ### 2. En Cloudflare: el Worker
 
