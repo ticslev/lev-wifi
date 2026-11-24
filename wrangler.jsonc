@@ -12,8 +12,8 @@
     {
       "binding": "DB",
       "database_name": "lev-wifi",
-      // Pegar aquí el Database ID de D1 → lev-wifi (Cloudflare → Storage & Databases → D1).
-      "database_id": "PEGAR-AQUI-EL-DATABASE-ID"
+      // Database ID de D1 → lev-wifi (Cloudflare → Storage & Databases → D1).
+      "database_id": "03b783a5-1f0a-41b8-962e-659df8c38ce4"
     }
   ],
 
