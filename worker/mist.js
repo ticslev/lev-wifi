@@ -58,9 +58,27 @@ async function llamar(env, metodo, ruta, cuerpo) {
 // no puede crear claves de organización.
 const sitio = (env) => `/sites/${env.MIST_SITE_ID}`;
 
-export async function listarClaves(env) {
-  const todas = await llamar(env, 'GET', `${sitio(env)}/psks?limit=1000`);
-  return (Array.isArray(todas) ? todas : []).filter((k) => esDePrueba(k, env));
+// Lee todas las páginas de un listado de Mist (máximo 1000 por página).
+async function listarTodo(env, ruta) {
+  const porPagina = 1000;
+  const todo = [];
+  for (let pagina = 1; pagina <= 20; pagina++) {
+    const sep = ruta.includes('?') ? '&' : '?';
+    const lote = await llamar(env, 'GET', `${ruta}${sep}limit=${porPagina}&page=${pagina}`);
+    if (!Array.isArray(lote)) break;
+    todo.push(...lote);
+    if (lote.length < porPagina) break;
+  }
+  return todo;
+}
+
+export { esDePrueba };
+
+// Claves del sitio. Por defecto solo las de prueba; con todas=true, todas
+// las del sitio (para verlas, nunca para borrarlas).
+export async function listarClaves(env, { todas = false } = {}) {
+  const lista = await listarTodo(env, `${sitio(env)}/psks`);
+  return todas ? lista : lista.filter((k) => esDePrueba(k, env));
 }
 
 export async function crearClave(env, datos) {
@@ -77,10 +95,13 @@ export async function borrarClave(env, id) {
   return clave;
 }
 
-// Solo devuelve los clientes conectados con alguna de las claves de prueba.
+// Todos los clientes inalámbricos conectados ahora en el sitio.
+export async function listarTodosClientes(env) {
+  return listarTodo(env, `${sitio(env)}/stats/clients`);
+}
+
+// Solo los clientes conectados con alguna de las claves de prueba.
 export async function listarClientes(env, idsPrueba) {
-  const todos = await llamar(env, 'GET', `/sites/${env.MIST_SITE_ID}/stats/clients?limit=1000`);
-  return (Array.isArray(todos) ? todos : []).filter(
-    (c) => c.ssid === env.MIST_SSID && c.psk_id && idsPrueba.has(c.psk_id)
-  );
+  const todos = await listarTodosClientes(env);
+  return todos.filter((c) => c.ssid === env.MIST_SSID && c.psk_id && idsPrueba.has(c.psk_id));
 }

@@ -33,7 +33,9 @@ async function tokenAccess() {
 const SSID = 'LEV';
 const claves = [
   { id: '0b1c2d3e-0000-4000-8000-000000000001', name: 'prueba-a', passphrase: 'ceibo-lago-72-norte-pan', ssid: SSID, vlan_id: 140, max_usage: 1, expire_time: Math.floor(Date.now() / 1000) + 86400 },
-  { id: '0b1c2d3e-0000-4000-8000-000000000098', name: 'estudiante@lev.edu.ec', passphrase: 'clave-real', ssid: SSID, vlan_id: 150, max_usage: 1 },
+  { id: '0b1c2d3e-0000-4000-8000-000000000098', name: 'estudiante@lev.edu.ec', passphrase: 'clave-comun', ssid: SSID, usage: 'single', mac: '4c0f3e1c9fad', vlan_id: 96, role: '10moPositivos' },
+  { id: '0b1c2d3e-0000-4000-8000-000000000097', name: 'DOCENTEEJEMPLO', passphrase: 'clave-casa', ssid: 'CASA LEV', usage: 'multi', vlan_id: 60, role: 'CASALEVINFO' },
+  { id: '0b1c2d3e-0000-4000-8000-000000000096', name: 'INVITADOSCASALEV', passphrase: 'clave-inv', ssid: 'CASA LEV', usage: 'multi', vlan_id: 50, role: 'CasaLevInvitados' },
   { id: '0b1c2d3e-0000-4000-8000-000000000099', name: 'docentes-real', passphrase: 'no-tocar', ssid: 'LEV-DOCENTES', vlan_id: 200, max_usage: 3 },
 ];
 const clientes = [

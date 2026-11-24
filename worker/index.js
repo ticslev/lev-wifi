@@ -12,6 +12,7 @@ import { verificarAcceso } from './acceso.js';
 import { generarClave } from './clave.js';
 import {
   ErrorMist, faltantes, listarClaves, crearClave, borrarClave, listarClientes,
+  listarTodosClientes, esDePrueba,
 } from './mist.js';
 import { pagina } from './pagina.js';
 
@@ -94,17 +95,29 @@ async function api(request, env, url, correo) {
   }
 
   if (ruta === '/api/claves' && request.method === 'GET') {
-    const claves = await listarClaves(env);
-    return json(claves.map((k) => ({
+    const todas = url.searchParams.get('todas') === '1';
+    const [claves, clientes] = await Promise.all([listarClaves(env, { todas }), listarTodosClientes(env)]);
+    // N.º de usuarios: dispositivos conectados ahora con cada clave.
+    const conectados = {};
+    for (const c of clientes) if (c.psk_id) conectados[c.psk_id] = (conectados[c.psk_id] || 0) + 1;
+    const lista = claves.map((k) => ({
       id: k.id,
-      nombre: k.name,
-      clave: k.passphrase,
+      nombre: k.name || '',
+      email: k.email || '',
+      clave: k.passphrase || '',
+      uso: k.usage || 'multi',
+      mac: k.mac || '',
+      macs: Array.isArray(k.macs) ? k.macs.length : 0,
+      ssid: k.ssid || '',
       vlan: k.vlan_id ?? null,
       rol: k.role || '',
       max: k.max_usage ?? 0,
       vence: k.expire_time ?? null,
-      nota: k.note || '',
-    })));
+      usuarios: conectados[k.id] || 0,
+      prueba: esDePrueba(k, env),
+    }));
+    lista.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    return json(lista);
   }
 
   if (ruta === '/api/claves' && request.method === 'POST') {
@@ -121,6 +134,8 @@ async function api(request, env, url, correo) {
     if (max === null) return error('Máximo de dispositivos: de 0 (sin límite) a 20');
     if (horas === null) return error('Vigencia: de 1 hora a 30 días');
     const rol = String(cuerpo.rol || '').trim();
+    const email = String(cuerpo.email || '').trim().toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error('El correo no es válido');
     if (rol && !/^[A-Za-z0-9_.-]{1,32}$/.test(rol)) return error('El rol solo admite letras, números, punto, guion y guion bajo (máx. 32)');
 
     const clave = generarClave();
@@ -133,6 +148,7 @@ async function api(request, env, url, correo) {
       expire_time: Math.floor(Date.now() / 1000) + horas * 3600,
       note: `Prueba lev-wifi creada por ${correo}`,
       ...(rol ? { role: rol } : {}),
+      ...(email ? { email } : {}),
     });
     return json({ id: creada && creada.id, nombre: `prueba-${etiqueta}`, clave, vlan, max, rol }, 201);
   }
