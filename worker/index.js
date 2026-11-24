@@ -100,6 +100,7 @@ async function api(request, env, url, correo) {
       nombre: k.name,
       clave: k.passphrase,
       vlan: k.vlan_id ?? null,
+      rol: k.role || '',
       max: k.max_usage ?? 0,
       vence: k.expire_time ?? null,
       nota: k.note || '',
@@ -119,6 +120,8 @@ async function api(request, env, url, correo) {
     if (vlan === null) return error('La VLAN debe ser un número entre 1 y 4094');
     if (max === null) return error('Máximo de dispositivos: de 0 (sin límite) a 20');
     if (horas === null) return error('Vigencia: de 1 hora a 30 días');
+    const rol = String(cuerpo.rol || '').trim();
+    if (rol && !/^[A-Za-z0-9_.-]{1,32}$/.test(rol)) return error('El rol solo admite letras, números, punto, guion y guion bajo (máx. 32)');
 
     const clave = generarClave();
     const creada = await crearClave(env, {
@@ -129,8 +132,9 @@ async function api(request, env, url, correo) {
       max_usage: max,
       expire_time: Math.floor(Date.now() / 1000) + horas * 3600,
       note: `Prueba lev-wifi creada por ${correo}`,
+      ...(rol ? { role: rol } : {}),
     });
-    return json({ id: creada && creada.id, nombre: `prueba-${etiqueta}`, clave, vlan, max }, 201);
+    return json({ id: creada && creada.id, nombre: `prueba-${etiqueta}`, clave, vlan, max, rol }, 201);
   }
 
   const borrar = ruta.match(/^\/api\/claves\/([A-Za-z0-9-]{8,64})$/);

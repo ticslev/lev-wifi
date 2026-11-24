@@ -56,6 +56,7 @@ li{margin-bottom:6px}
 <form id="crear">
 <label>Nombre (p. ej. prueba1)<input name="nombre" required maxlength="40" autocomplete="off"></label>
 <label>VLAN<input name="vlan" type="number" min="1" max="4094" required></label>
+<label>Rol (opcional, p. ej. 10moPositivos)<input name="rol" maxlength="32" autocomplete="off"></label>
 <label>Máx. dispositivos (0 = sin límite)<input name="max" type="number" min="0" max="20" value="1" required></label>
 <label>Vigencia (horas)<input name="horas" type="number" min="1" max="720" value="48" required></label>
 <button class="primario" type="submit">Crear clave</button>
@@ -65,7 +66,7 @@ li{margin-bottom:6px}
 
 <section>
 <div class="fila"><h2>2. Claves de prueba</h2><button id="recargarClaves" type="button">Actualizar</button></div>
-<div class="tabla"><table><thead><tr><th>Nombre</th><th>Clave</th><th>VLAN</th><th>Máx.</th><th>Vence</th><th></th></tr></thead><tbody id="claves"></tbody></table></div>
+<div class="tabla"><table><thead><tr><th>Nombre</th><th>Clave</th><th>VLAN</th><th>Rol</th><th>Máx.</th><th>Vence</th><th></th></tr></thead><tbody id="claves"></tbody></table></div>
 <p id="clavesVacio" class="vacio oculto">No hay claves de prueba.</p>
 </section>
 
@@ -130,6 +131,7 @@ li{margin-bottom:6px}
         celda(tr, k.nombre);
         celda(tr, k.clave, 'mono');
         celda(tr, k.vlan, 'mono');
+        celda(tr, k.rol);
         celda(tr, k.max === 0 ? 'Sin límite' : k.max);
         celda(tr, fecha(k.vence));
         var td = document.createElement('td');
@@ -171,11 +173,11 @@ li{margin-bottom:6px}
     var f = ev.target, b = f.querySelector('button');
     b.disabled = true;
     pedir('POST', '/api/claves', {
-      nombre: f.nombre.value, vlan: f.vlan.value, max: f.max.value, horas: f.horas.value
+      nombre: f.nombre.value, vlan: f.vlan.value, rol: f.rol.value, max: f.max.value, horas: f.horas.value
     }).then(function(k){
       limpiarError();
       var caja = $('nueva'); caja.textContent = '';
-      caja.appendChild(document.createTextNode('Clave ' + k.nombre + ' creada (VLAN ' + k.vlan + ', máx. ' + (k.max || 'sin límite') + '):'));
+      caja.appendChild(document.createTextNode('Clave ' + k.nombre + ' creada (VLAN ' + k.vlan + (k.rol ? ', rol ' + k.rol : '') + ', máx. ' + (k.max || 'sin límite') + '):'));
       var s = document.createElement('strong'); s.textContent = k.clave; caja.appendChild(s);
       caja.className = 'nueva';
       f.nombre.value = '';
