@@ -44,7 +44,7 @@ async function llamar(env, metodo, ruta, cuerpo) {
   try { datos = texto ? JSON.parse(texto) : null; } catch { datos = texto; }
   if (!r.ok) {
     const motivo = r.status === 401 || r.status === 403
-      ? 'Mist rechazó el token (revisa MIST_TOKEN y sus permisos)'
+      ? `Mist rechazó el token (código ${r.status}, ${metodo} ${ruta.split('?')[0].replace(/[0-9a-f-]{36}/g, '…')}): revisa MIST_TOKEN, sus permisos y que MIST_API sea la región correcta`
       : r.status === 404
         ? 'Mist no encontró el recurso (revisa MIST_API, MIST_ORG_ID o MIST_SITE_ID)'
         : `Mist respondió ${r.status}`;
